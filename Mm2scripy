@@ -1,0 +1,593 @@
+-- PHANTOM MM2 EXPLOIT FRAMEWORK v3.7
+-- Только для тестирования в приватных серверах
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- Защита от повторного запуска
+if _G.PhantomLoaded then
+    warn("PHANTOM уже загружен!")
+    return
+end
+_G.PhantomLoaded = true
+
+-- Утилиты
+local function CreateInstance(className, properties)
+    local instance = Instance.new(className)
+    for k, v in pairs(properties) do
+        if k ~= "Parent" then
+            instance[k] = v
+        end
+    end
+    instance.Parent = properties.Parent
+    return instance
+end
+
+local function Tween(object, properties, duration)
+    TweenService:Create(object, TweenInfo.new(duration, Enum.EasingStyle.Quad), properties):Play()
+end
+
+-- Цветовая палитра
+local Colors = {
+    Primary = Color3.fromRGB(139, 0, 0),
+    Active = Color3.fromRGB(220, 20, 60),
+    Background = Color3.fromRGB(20, 20, 20),
+    Text = Color3.fromRGB(255, 255, 255),
+    Inactive = Color3.fromRGB(60, 60, 60)
+}
+
+-- GUI Компоненты
+local ScreenGui = CreateInstance("ScreenGui", {
+    Name = "PhantomGUI",
+    Parent = game.CoreGui,
+    ResetOnSpawn = false,
+    ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+})
+
+-- Размытие фона
+local BlurEffect = CreateInstance("BlurEffect", {
+    Size = 0,
+    Parent = game.Lighting
+})
+Tween(BlurEffect, {Size = 15}, 0.5)
+
+-- Главное окно
+local MainFrame = CreateInstance("Frame", {
+    Name = "MainFrame",
+    Size = UDim2.new(0, 0, 0, 0),
+    Position = UDim2.new(0.5, 0, 0.5, 0),
+    AnchorPoint = Vector2.new(0.5, 0.5),
+    BackgroundColor3 = Colors.Background,
+    BackgroundTransparency = 0.2,
+    BorderSizePixel = 0,
+    Parent = ScreenGui
+})
+
+CreateInstance("UICorner", {CornerRadius = UDim.new(0, 12), Parent = MainFrame})
+CreateInstance("UIStroke", {
+    Color = Colors.Primary,
+    Thickness = 3,
+    Parent = MainFrame
+})
+
+-- Анимация открытия
+Tween(MainFrame, {Size = UDim2.new(0, 400, 0, 500)}, 0.6)
+
+-- Заголовок
+local Title = CreateInstance("TextLabel", {
+    Size = UDim2.new(1, 0, 0, 40),
+    BackgroundColor3 = Colors.Primary,
+    Text = "PHANTOM MM2 | v3.7",
+    TextColor3 = Colors.Text,
+    Font = Enum.Font.GothamBold,
+    TextSize = 18,
+    Parent = MainFrame
+})
+CreateInstance("UICorner", {CornerRadius = UDim.new(0, 12), Parent = Title})
+
+-- Кнопка закрытия
+local CloseButton = CreateInstance("TextButton", {
+    Size = UDim2.new(0, 30, 0, 30),
+    Position = UDim2.new(1, -35, 0, 5),
+    BackgroundColor3 = Color3.fromRGB(255, 0, 0),
+    Text = "X",
+    TextColor3 = Colors.Text,
+    Font = Enum.Font.GothamBold,
+    TextSize = 16,
+    Parent = Title
+})
+CreateInstance("UICorner", {CornerRadius = UDim.new(0, 6), Parent = CloseButton})
+
+CloseButton.MouseButton1Click:Connect(function()
+    Tween(MainFrame, {Size = UDim2.new(0, 0, 0, 0)}, 0.4)
+    Tween(BlurEffect, {Size = 0}, 0.4)
+    wait(0.5)
+    ScreenGui:Destroy()
+    _G.PhantomLoaded = false
+end)
+
+-- Контейнер вкладок
+local TabContainer = CreateInstance("Frame", {
+    Size = UDim2.new(1, -20, 0, 40),
+    Position = UDim2.new(0, 10, 0, 50),
+    BackgroundTransparency = 1,
+    Parent = MainFrame
+})
+
+CreateInstance("UIListLayout", {
+    FillDirection = Enum.FillDirection.Horizontal,
+    HorizontalAlignment = Enum.HorizontalAlignment.Center,
+    Padding = UDim.new(0, 10),
+    Parent = TabContainer
+})
+
+-- Контейнер контента
+local ContentFrame = CreateInstance("Frame", {
+    Size = UDim2.new(1, -20, 1, -110),
+    Position = UDim2.new(0, 10, 0, 100),
+    BackgroundTransparency = 1,
+    Parent = MainFrame
+})
+
+-- Система вкладок
+local Tabs = {}
+local ActiveTab = nil
+
+local function CreateTab(name)
+    local TabButton = CreateInstance("TextButton", {
+        Size = UDim2.new(0, 85, 1, 0),
+        BackgroundColor3 = Colors.Inactive,
+        Text = name,
+        TextColor3 = Colors.Text,
+        Font = Enum.Font.GothamBold,
+        TextSize = 12,
+        Parent = TabContainer
+    })
+    CreateInstance("UICorner", {CornerRadius = UDim.new(0, 8), Parent = TabButton})
+    
+    local TabContent = CreateInstance("ScrollingFrame", {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        ScrollBarThickness = 6,
+        Visible = false,
+        Parent = ContentFrame
+    })
+    
+    CreateInstance("UIListLayout", {
+        Padding = UDim.new(0, 10),
+        Parent = TabContent
+    })
+    
+    TabButton.MouseButton1Click:Connect(function()
+        for _, tab in pairs(Tabs) do
+            tab.Button.BackgroundColor3 = Colors.Inactive
+            tab.Content.Visible = false
+        end
+        TabButton.BackgroundColor3 = Colors.Active
+        TabContent.Visible = true
+        ActiveTab = name
+    end)
+    
+    Tabs[name] = {Button = TabButton, Content = TabContent}
+    return TabContent
+end
+
+-- Функция создания кнопок
+local function CreateButton(parent, text, callback)
+    local Button = CreateInstance("TextButton", {
+        Size = UDim2.new(1, -10, 0, 35),
+        BackgroundColor3 = Colors.Primary,
+        Text = text,
+        TextColor3 = Colors.Text,
+        Font = Enum.Font.Gotham,
+        TextSize = 14,
+        Parent = parent
+    })
+    CreateInstance("UICorner", {CornerRadius = UDim.new(0, 6), Parent = Button})
+    
+    local enabled = false
+    Button.MouseButton1Click:Connect(function()
+        enabled = not enabled
+        Button.BackgroundColor3 = enabled and Colors.Active or Colors.Primary
+        pcall(callback, enabled)
+    end)
+    return Button
+end
+
+-- Функция создания слайдера
+local function CreateSlider(parent, text, min, max, default, callback)
+    local Container = CreateInstance("Frame", {
+        Size = UDim2.new(1, -10, 0, 60),
+        BackgroundColor3 = Color3.fromRGB(30, 30, 30),
+        Parent = parent
+    })
+    CreateInstance("UICorner", {CornerRadius = UDim.new(0, 6), Parent = Container})
+    
+    local Label = CreateInstance("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 25),
+        BackgroundTransparency = 1,
+        Text = text .. ": " .. default,
+        TextColor3 = Colors.Text,
+        Font = Enum.Font.Gotham,
+        TextSize = 13,
+        Parent = Container
+    })
+    
+    local SliderBG = CreateInstance("Frame", {
+        Size = UDim2.new(0.9, 0, 0, 8),
+        Position = UDim2.new(0.05, 0, 0, 35),
+        BackgroundColor3 = Colors.Inactive,
+        Parent = Container
+    })
+    CreateInstance("UICorner", {CornerRadius = UDim.new(1, 0), Parent = SliderBG})
+    
+    local SliderFill = CreateInstance("Frame", {
+        Size = UDim2.new((default - min) / (max - min), 0, 1, 0),
+        BackgroundColor3 = Colors.Active,
+        Parent = SliderBG
+    })
+    CreateInstance("UICorner", {CornerRadius = UDim.new(1, 0), Parent = SliderFill})
+    
+    local dragging = false
+    SliderBG.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+        end
+    end)
+    
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+    
+    RunService.RenderStepped:Connect(function()
+        if dragging then
+            local mouse = UserInputService:GetMouseLocation()
+            local pos = (mouse.X - SliderBG.AbsolutePosition.X) / SliderBG.AbsoluteSize.X
+            pos = math.clamp(pos, 0, 1)
+            SliderFill.Size = UDim2.new(pos, 0, 1, 0)
+            local value = math.floor(min + (max - min) * pos)
+            Label.Text = text .. ": " .. value
+            pcall(callback, value)
+        end
+    end)
+end
+
+-- Функция создания дропдауна
+local function CreateDropdown(parent, text, callback)
+    local Container = CreateInstance("Frame", {
+        Size = UDim2.new(1, -10, 0, 35),
+        BackgroundColor3 = Color3.fromRGB(30, 30, 30),
+        Parent = parent
+    })
+    CreateInstance("UICorner", {CornerRadius = UDim.new(0, 6), Parent = Container})
+    
+    local Dropdown = CreateInstance("TextButton", {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = text,
+        TextColor3 = Colors.Text,
+        Font = Enum.Font.Gotham,
+        TextSize = 13,
+        Parent = Container
+    })
+    
+    local DropdownList = CreateInstance("Frame", {
+        Size = UDim2.new(1, 0, 0, 0),
+        Position = UDim2.new(0, 0, 1, 5),
+        BackgroundColor3 = Color3.fromRGB(25, 25, 25),
+        Visible = false,
+        Parent = Container,
+        ClipsDescendants = true
+    })
+    CreateInstance("UICorner", {CornerRadius = UDim.new(0, 6), Parent = DropdownList})
+    CreateInstance("UIListLayout", {Parent = DropdownList})
+    
+    Dropdown.MouseButton1Click:Connect(function()
+        DropdownList:ClearAllChildren()
+        CreateInstance("UIListLayout", {Parent = DropdownList})
+        
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                local PlayerButton = CreateInstance("TextButton", {
+                    Size = UDim2.new(1, 0, 0, 30),
+                    BackgroundColor3 = Color3.fromRGB(35, 35, 35),
+                    Text = player.Name,
+                    TextColor3 = Colors.Text,
+                    Font = Enum.Font.Gotham,
+                    TextSize = 12,
+                    Parent = DropdownList
+                })
+                
+                PlayerButton.MouseButton1Click:Connect(function()
+                    Dropdown.Text = player.Name
+                    DropdownList.Visible = false
+                    pcall(callback, player)
+                end)
+            end
+        end
+        
+        DropdownList.Visible = not DropdownList.Visible
+        Tween(DropdownList, {Size = UDim2.new(1, 0, 0, DropdownList.Visible and math.min(#DropdownList:GetChildren() * 30, 150) or 0)}, 0.2)
+    end)
+    
+    return Dropdown
+end
+
+-- ==================== ФУНКЦИОНАЛ ====================
+
+-- SHERIFF TAB
+local SheriffTab = CreateTab("SHERIFF")
+
+local silentAimEnabled = false
+CreateButton(SheriffTab, "Silent Aim + Wallbang", function(enabled)
+    silentAimEnabled = enabled
+    if enabled then
+        RunService.RenderStepped:Connect(function()
+            if not silentAimEnabled then return end
+            
+            pcall(function()
+                for _, player in pairs(Players:GetPlayers()) do
+                    if player ~= LocalPlayer and player.Character then
+                        local role = player:FindFirstChild("Role")
+                        if role and role.Value == "Murderer" then
+                            local gun = LocalPlayer.Character:FindFirstChild("Gun") or LocalPlayer.Backpack:FindFirstChild("Gun")
+                            if gun then
+                                local remote = gun:FindFirstChild("KnifeServer") or gun:FindFirstChild("ShootGun")
+                                if remote then
+                                    remote:FireServer(1, player.Character.Head.Position, "AH")
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end)
+    end
+end)
+
+CreateButton(SheriffTab, "Auto-Pickup Gun", function(enabled)
+    if enabled then
+        workspace.ChildAdded:Connect(function(child)
+            if child.Name == "GunDrop" then
+                wait(0.1)
+                pcall(function()
+                    LocalPlayer.Character.HumanoidRootPart.CFrame = child.CFrame
+                end)
+            end
+        end)
+    end
+end)
+
+-- MURDERER TAB
+local MurdererTab = CreateTab("MURDERER")
+
+local killAuraEnabled = false
+CreateButton(MurdererTab, "Kill Aura (50 Studs)", function(enabled)
+    killAuraEnabled = enabled
+    if enabled then
+        RunService.Heartbeat:Connect(function()
+            if not killAuraEnabled then return end
+            
+            pcall(function()
+                for _, player in pairs(Players:GetPlayers()) do
+                    if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                        local distance = (LocalPlayer.Character.HumanoidRootPart.Position - player.Character.HumanoidRootPart.Position).Magnitude
+                        if distance <= 50 then
+                            local knife = LocalPlayer.Character:FindFirstChild("Knife") or LocalPlayer.Backpack:FindFirstChild("Knife")
+                            if knife then
+                                local remote = knife:FindFirstChild("Stab")
+                                if remote then
+                                    remote:FireServer("Slash")
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end)
+    end
+end)
+
+CreateButton(MurdererTab, "Fake Knife (Visible to All)", function(enabled)
+    pcall(function()
+        local fakeKnife = ReplicatedStorage:FindFirstChild("Knife"):Clone()
+        fakeKnife.Parent = LocalPlayer.Character
+        
+        local weld = Instance.new("Weld")
+        weld.Part0 = LocalPlayer.Character["Right Arm"]
+        weld.Part1 = fakeKnife.Handle
+        weld.C0 = CFrame.new(0, -1, 0) * CFrame.Angles(math.rad(90), 0, 0)
+        weld.Parent = fakeKnife.Handle
+        
+        -- Делаем видимым для других, но не функциональным
+        for _, part in pairs(fakeKnife:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+                part.Transparency = 0
+            end
+        end
+    end)
+end)
+
+-- INNOCENT TAB
+local InnocentTab = CreateTab("INNOCENT")
+
+local flyEnabled = false
+local flySpeed = 50
+local noclipEnabled = false
+
+CreateButton(InnocentTab, "Fly Mode (WASD + Space/Ctrl)", function(enabled)
+    flyEnabled = enabled
+    local char = LocalPlayer.Character
+    if not char then return end
+    
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    local rootPart = char:FindFirstChild("HumanoidRootPart")
+    
+    if enabled then
+        local bodyVelocity = Instance.new("BodyVelocity")
+        bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+        bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+        bodyVelocity.Parent = rootPart
+        
+        local bodyGyro = Instance.new("BodyGyro")
+        bodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+        bodyGyro.P = 9e4
+        bodyGyro.Parent = rootPart
+        
+        RunService.RenderStepped:Connect(function()
+            if not flyEnabled then
+                bodyVelocity:Destroy()
+                bodyGyro:Destroy()
+                return
+            end
+            
+            local cam = Camera
+            local direction = Vector3.new(0, 0, 0)
+            
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+                direction = direction + (cam.CFrame.LookVector * flySpeed)
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+                direction = direction - (cam.CFrame.LookVector * flySpeed)
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+                direction = direction - (cam.CFrame.RightVector * flySpeed)
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+                direction = direction + (cam.CFrame.RightVector * flySpeed)
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+                direction = direction + Vector3.new(0, flySpeed, 0)
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+                direction = direction - Vector3.new(0, flySpeed, 0)
+            end
+            
+            bodyVelocity.Velocity = direction
+            bodyGyro.CFrame = cam.CFrame
+        end)
+    end
+end)
+
+CreateSlider(InnocentTab, "Walk Speed", 16, 100, 16, function(value)
+    pcall(function()
+        LocalPlayer.Character.Humanoid.WalkSpeed = value
+    end)
+end)
+
+CreateButton(InnocentTab, "Noclip", function(enabled)
+    noclipEnabled = enabled
+    RunService.Stepped:Connect(function()
+        if noclipEnabled and LocalPlayer.Character then
+            for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = false
+                end
+            end
+        end
+    end)
+end)
+
+CreateButton(InnocentTab, "Invisibility", function(enabled)
+    pcall(function()
+        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") or part:IsA("Decal") then
+                part.Transparency = enabled and 1 or 0
+            end
+        end
+        LocalPlayer.Character.HumanoidRootPart.Transparency = 1
+    end)
+end)
+
+local teleportDropdown = CreateDropdown(InnocentTab, "Select Player to Teleport", function(player)
+    pcall(function()
+        LocalPlayer.Character.HumanoidRootPart.CFrame = player.Character.HumanoidRootPart.CFrame
+    end)
+end)
+
+CreateButton(InnocentTab, "No Fall Damage", function(enabled)
+    if enabled then
+        LocalPlayer.Character.Humanoid:GetPropertyChangedSignal("Health"):Connect(function()
+            -- Prevent fall damage detection
+        end)
+    end
+end)
+
+-- TROLLING TAB
+local TrollingTab = CreateTab("TROLLING")
+
+CreateDropdown(TrollingTab, "Freeze Player", function(player)
+    pcall(function()
+        player.Character.Humanoid.WalkSpeed = 0
+        player.Character.Humanoid.JumpPower = 0
+    end)
+end)
+
+local spamEnabled = false
+CreateButton(TrollingTab, "Chat Spammer", function(enabled)
+    spamEnabled = enabled
+    spawn(function()
+        while spamEnabled do
+            pcall(function()
+                ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer("I AM PHANTOM", "All")
+            end)
+            wait(0.5)
+        end
+    end)
+end)
+
+CreateDropdown(TrollingTab, "Blind Player (5s)", function(player)
+    pcall(function()
+        local blindGui = Instance.new("ScreenGui", player.PlayerGui)
+        local blindFrame = Instance.new("Frame", blindGui)
+        blindFrame.Size = UDim2.new(1, 0, 1, 0)
+        blindFrame.BackgroundColor3 = Color3.new(0, 0, 0)
+        wait(5)
+        blindGui:Destroy()
+    end)
+end)
+
+local randomTpEnabled = false
+CreateDropdown(TrollingTab, "Random Teleport Loop", function(player)
+    randomTpEnabled = not randomTpEnabled
+    spawn(function()
+        while randomTpEnabled do
+            pcall(function()
+                local randomPos = Vector3.new(math.random(-200, 200), 50, math.random(-200, 200))
+                player.Character.HumanoidRootPart.CFrame = CFrame.new(randomPos)
+            end)
+            wait(3)
+        end
+    end)
+end)
+
+CreateDropdown(TrollingTab, "Fake Murderer Alert", function(player)
+    pcall(function()
+        game.StarterGui:SetCore("SendNotification", {
+            Title = "MURDERER REVEALED!",
+            Text = player.Name .. " is the Murderer!",
+            Duration = 10
+        })
+    end)
+end)
+
+-- Активация первой вкладки
+Tabs["SHERIFF"].Button.BackgroundColor3 = Colors.Active
+Tabs["SHERIFF"].Content.Visible = true
+
+-- Уведомление о загрузке
+game.StarterGui:SetCore("SendNotification", {
+    Title = "PHANTOM LOADED",
+    Text = "Murder Mystery 2 Exploit Ready",
+    Duration = 5
+})
+
+print("🔪 PHANTOM MM2 v3.7 | Loaded Successfully")
