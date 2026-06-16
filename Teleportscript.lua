@@ -1,4 +1,4 @@
--- === TELEPORT MENU (МЕНЬШЕ + КРЕСТИК + СКРУГЛЕНИЕ + ОБХОД АНТИЧИТА) ===
+-- === TELEPORT MENU (КРЕСТИК + КРУГЛАЯ КНОПКА ДЛЯ ОТКРЫТИЯ) ===
 local player = game.Players.LocalPlayer
 local root = player.Character:WaitForChild("HumanoidRootPart")
 
@@ -10,6 +10,7 @@ screenGui.Name = "TeleportMenu"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
+-- Основное меню
 local frame = Instance.new("Frame")
 frame.Size = UDim2.new(0, 150, 0, 190)
 frame.Position = UDim2.new(0, 20, 0.5, -95)
@@ -17,6 +18,7 @@ frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 frame.BorderSizePixel = 0
 frame.Active = true
 frame.Draggable = true
+frame.Visible = true
 frame.Parent = screenGui
 
 local corner = Instance.new("UICorner")
@@ -47,6 +49,28 @@ local closeCorner = Instance.new("UICorner")
 closeCorner.CornerRadius = UDim.new(0, 8)
 closeCorner.Parent = btnClose
 
+-- Круглая кнопка для открытия (появляется когда меню закрыто)
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(0, 50, 0, 50)
+toggleButton.Position = UDim2.new(0, 20, 0.5, -25)
+toggleButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+toggleButton.Text = "📍"
+toggleButton.TextColor3 = Color3.new(1, 1, 1)
+toggleButton.TextSize = 24
+toggleButton.Font = Enum.Font.SourceSansBold
+toggleButton.Visible = false
+toggleButton.Parent = screenGui
+
+local toggleCorner = Instance.new("UICorner")
+toggleCorner.CornerRadius = UDim.new(1, 0)  -- полностью круглая
+toggleCorner.Parent = toggleButton
+
+local toggleStroke = Instance.new("UIStroke")
+toggleStroke.Thickness = 2
+toggleStroke.Color = Color3.fromRGB(255, 255, 255)
+toggleStroke.Parent = toggleButton
+
+-- Кнопки меню
 local function createButton(text, posY, color)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0.9, 0, 0, 42)
@@ -81,37 +105,43 @@ local function updateInfo()
     info.Text = "Точек: " .. #teleportPoints .. " | #" .. currentIndex
 end
 
--- === УЛУЧШЕННЫЕ МЕТОДЫ ТЕЛЕПОРТА (обход античита) ===
+-- Функция показа/скрытия
+local function toggleMenu(visible)
+    frame.Visible = visible
+    toggleButton.Visible = not visible
+end
+
+-- Логика кнопок
+btnClose.MouseButton1Click:Connect(function()
+    toggleMenu(false)
+end)
+
+toggleButton.MouseButton1Click:Connect(function()
+    toggleMenu(true)
+end)
+
+-- Остальная логика телепорта (та же, что работала)
 local function safeTeleport(targetCFrame)
     local char = player.Character
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-    
-    -- Метод 1: Velocity + AssemblyLinearVelocity (часто обходит)
-    pcall(function()
-        hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-        hrp.CFrame = targetCFrame + Vector3.new(0, 4, 0)
-        wait(0.05)
-        hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-    end)
-    
-    -- Метод 2: Tween (более плавный, иногда менее детектится)
-    local TweenService = game:GetService("TweenService")
-    pcall(function()
-        local tweenInfo = TweenInfo.new(0.15, Enum.EasingStyle.Linear)
-        local tween = TweenService:Create(hrp, tweenInfo, {CFrame = targetCFrame + Vector3.new(0, 3, 0)})
-        tween:Play()
-        tween.Completed:Wait()
-    end)
-    
-    -- Метод 3: Humanoid MoveTo (самый "легальный")
     local hum = char:FindFirstChild("Humanoid")
-    if hum then
-        hum:MoveTo(targetCFrame.Position)
-        wait(0.3)
-        hrp.CFrame = targetCFrame + Vector3.new(0, 3, 0)
-    end
+    if not hrp then return end
+
+    pcall(function()
+        hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+        hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+        hrp.CFrame = targetCFrame * CFrame.new(0, 5, 0)
+        
+        task.wait(0.08)
+        hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+        
+        if hum then
+            hum.PlatformStand = true
+            task.wait(0.12)
+            hum.PlatformStand = false
+        end
+    end)
 end
 
 btnAdd.MouseButton1Click:Connect(function()
@@ -132,21 +162,17 @@ btnTeleport.MouseButton1Click:Connect(function()
     if #teleportPoints == 0 then return end
     currentIndex = currentIndex + 1
     if currentIndex > #teleportPoints then currentIndex = 1 end
-    
     safeTeleport(teleportPoints[currentIndex])
     updateInfo()
 end)
 
-btnClose.MouseButton1Click:Connect(function()
-    screenGui.Enabled = false
-end)
-
+-- Горячая клавиша F
 game:GetService("UserInputService").InputBegan:Connect(function(input, gp)
     if gp then return end
     if input.KeyCode == Enum.KeyCode.F then
-        screenGui.Enabled = not screenGui.Enabled
+        toggleMenu(not frame.Visible)
     end
 end)
 
 updateInfo()
-print("Меню с обходом античита загружено. F — показать/скрыть.")
+print("Меню обновлено: крестик закрывает, круглая кнопка открывает. F — переключить.")
