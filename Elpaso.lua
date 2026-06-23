@@ -1,115 +1,101 @@
--- Grok El Paso Small Coords | Compact + Copy
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-local ClipboardService = game:GetService("ClipboardService")
+-- LocalScript (в StarterPlayerScripts или в ScreenGui)
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
 
-local gui = Instance.new("ScreenGui")
-gui.Name = "GrokSmallCoords"
-gui.ResetOnSpawn = false
-gui.Parent = player:WaitForChild("PlayerGui")
+local waypoints = {}
+local currentIndex = 1
+
+-- Создаём GUI
+local screenGui = Instance.new("ScreenGui")
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
 
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 160, 0, 95)
-frame.Position = UDim2.new(0, 15, 0, 15)
-frame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+frame.Size = UDim2.new(0, 180, 0, 120)
+frame.Position = UDim2.new(0, 20, 0.5, -60)
+frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 frame.BorderSizePixel = 0
-frame.BackgroundTransparency = 0.2
-frame.Active = true
-frame.Draggable = true
-frame.Parent = gui
+frame.Parent = screenGui
 
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 22)
-title.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
-title.Text = "📍 Координаты"
+title.Size = UDim2.new(1, 0, 0, 30)
+title.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+title.Text = "TP Menu"
 title.TextColor3 = Color3.new(1,1,1)
-title.Font = Enum.Font.GothamBold
-title.TextSize = 13
 title.Parent = frame
 
-local label = Instance.new("TextLabel")
-label.Size = UDim2.new(1, -10, 0, 38)
-label.Position = UDim2.new(0, 5, 0, 25)
-label.BackgroundTransparency = 1
-label.TextColor3 = Color3.new(1,1,1)
-label.Font = Enum.Font.Gotham
-label.TextSize = 12
-label.TextXAlignment = Enum.TextXAlignment.Left
-label.Text = "X: 0.000\nY: 0.000\nZ: 0.000"
-label.Parent = frame
+local btnSet = Instance.new("TextButton")
+btnSet.Size = UDim2.new(0.9, 0, 0, 35)
+btnSet.Position = UDim2.new(0.05, 0, 0.35, 0)
+btnSet.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+btnSet.Text = "+  ЗАДАТЬ ТОЧКУ"
+btnSet.TextColor3 = Color3.new(1,1,1)
+btnSet.Parent = frame
 
-local copyBtn = Instance.new("TextButton")
-copyBtn.Size = UDim2.new(0, 50, 0, 22)
-copyBtn.Position = UDim2.new(1, -55, 0, 3)
-copyBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-copyBtn.Text = "📋"
-copyBtn.TextColor3 = Color3.new(1,1,1)
-copyBtn.Font = Enum.Font.GothamBold
-copyBtn.TextSize = 14
-copyBtn.Parent = frame
+local btnTP = Instance.new("TextButton")
+btnTP.Size = UDim2.new(0.9, 0, 0, 35)
+btnTP.Position = UDim2.new(0.05, 0, 0.65, 0)
+btnTP.BackgroundColor3 = Color3.fromRGB(0, 100, 255)
+btnTP.Text = "▶ ЗАПУСТИТЬ"
+btnTP.TextColor3 = Color3.new(1,1,1)
+btnTP.Parent = frame
 
-local sizeUp = Instance.new("TextButton")
-sizeUp.Size = UDim2.new(0, 22, 0, 22)
-sizeUp.Position = UDim2.new(1, -80, 0, 3)
-sizeUp.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-sizeUp.Text = "+"
-sizeUp.TextColor3 = Color3.new(0,1,0)
-sizeUp.Font = Enum.Font.GothamBold
-sizeUp.TextSize = 16
-sizeUp.Parent = frame
+-- Функция телепорта (через машину)
+local function teleportToPoint(index)
+    if #waypoints < index then 
+        print("Нет точки #"..index)
+        return 
+    end
+    
+    local targetCFrame = waypoints[index]
+    
+    -- Ищем машину игрока
+    local vehicle = nil
+    for _, v in ipairs(character:GetDescendants()) do
+        if v:IsA("VehicleSeat") or v:IsA("Seat") then
+            vehicle = v
+            break
+        end
+    end
+    
+    if vehicle and vehicle.Parent then
+        -- Телепорт через машину (более безопасно)
+        local root = vehicle.Parent:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("HumanoidRootPart")
+        if root then
+            root.CFrame = targetCFrame * CFrame.new(0, 4, 0)  -- чуть выше, чтоб не в пол
+            print("Телепорт в точку", index)
+        end
+    else
+        -- Если без машины — обычный ТП (может кикнуть)
+        local root = character:FindFirstChild("HumanoidRootPart")
+        if root then
+            root.CFrame = targetCFrame * CFrame.new(0, 4, 0)
+        end
+    end
+end
 
-local sizeDown = Instance.new("TextButton")
-sizeDown.Size = UDim2.new(0, 22, 0, 22)
-sizeDown.Position = UDim2.new(1, -105, 0, 3)
-sizeDown.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-sizeDown.Text = "-"
-sizeDown.TextColor3 = Color3.new(1,0,0)
-sizeDown.Font = Enum.Font.GothamBold
-sizeDown.TextSize = 16
-sizeDown.Parent = frame
-
-local enabled = true
-
-copyBtn.MouseButton1Click:Connect(function()
-    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-    if hrp then
-        local p = hrp.Position
-        local text = string.format("X: %.3f\nY: %.3f\nZ: %.3f", p.X, p.Y, p.Z)
-        setclipboard(text)  -- работает в Delta
-        copyBtn.Text = "✅"
-        wait(0.6)
-        copyBtn.Text = "📋"
+btnSet.MouseButton1Click:Connect(function()
+    local root = character:FindFirstChild("HumanoidRootPart")
+    if root then
+        table.insert(waypoints, root.CFrame)
+        currentIndex = #waypoints
+        print("Точка сохранена #" .. #waypoints)
     end
 end)
 
-local baseSize = {w = 160, h = 95}
-sizeUp.MouseButton1Click:Connect(function()
-    baseSize.w = baseSize.w + 30
-    baseSize.h = baseSize.h + 20
-    frame.Size = UDim2.new(0, baseSize.w, 0, baseSize.h)
-end)
-
-sizeDown.MouseButton1Click:Connect(function()
-    if baseSize.w > 120 then
-        baseSize.w = baseSize.w - 30
-        baseSize.h = baseSize.h - 20
-        frame.Size = UDim2.new(0, baseSize.w, 0, baseSize.h)
+btnTP.MouseButton1Click:Connect(function()
+    teleportToPoint(currentIndex)
+    currentIndex = currentIndex + 1
+    if currentIndex > #waypoints then
+        currentIndex = 1  -- зацикливаем
     end
 end)
 
-spawn(function()
-    while enabled and gui.Parent do
-        pcall(function()
-            local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                local p = hrp.Position
-                label.Text = string.format("X: %.3f\nY: %.3f\nZ: %.3f", p.X, p.Y, p.Z)
-            else
-                label.Text = "Ждём спавн..."
-            end
-        end)
-        wait(0.07)
-    end
+-- Обновляем character при респавне
+player.CharacterAdded:Connect(function(newChar)
+    character = newChar
+    humanoid = newChar:WaitForChild("Humanoid")
 end)
 
-print("✅ Маленькие координаты Grok загружены | + / - размер | 📋 копировать")
+print("TP Menu загружен. + = сохранить точку, Запустить = тп в следующую")
